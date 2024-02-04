@@ -51,7 +51,7 @@
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+int uartIsBusyFlag = 0;
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
@@ -209,6 +209,16 @@ void USART1_IRQHandler(void)
   /* USER CODE END USART1_IRQn 0 */
   HAL_UART_IRQHandler(&huart1);
   /* USER CODE BEGIN USART1_IRQn 1 */
+  char cData;
+
+  if (!uartIsBusyFlag) {
+      uartIsBusyFlag = 1;
+      HAL_UART_Receive_IT(&huart1, (uint8_t*) &cData, 1);
+      HAL_UART_Transmit(&huart2, (uint8_t*) &cData, 1, 1);
+      store_received_data(cData);
+      handle_recieved_data(cData);
+      uartIsBusyFlag = 0;
+  }
 
   /* USER CODE END USART1_IRQn 1 */
 }
@@ -223,10 +233,69 @@ void USART2_IRQHandler(void)
   /* USER CODE END USART2_IRQn 0 */
   HAL_UART_IRQHandler(&huart2);
   /* USER CODE BEGIN USART2_IRQn 1 */
+  char cData;
+
+  if (!uartIsBusyFlag) {
+      uartIsBusyFlag = 1;
+      HAL_UART_Receive_IT(&huart2, (uint8_t*) &cData, 1);
+      HAL_UART_Transmit(&huart1, (uint8_t*) &cData, 1, 1);
+      store_transmitted_data(cData);
+      uartIsBusyFlag = 0;
+  }
 
   /* USER CODE END USART2_IRQn 1 */
 }
 
 /* USER CODE BEGIN 1 */
+uint32_t address_received = 0x08003a00;
+uint32_t address_transmitted = 0x08103a00;
+uint32_t t_received = 0;
+uint32_t t_transmitted = 0;
+
+void store_received_data(char cData) 
+{
+    uint32_t tick = HAL_GetTick();//__HAL_TIM_GET_COUNTER(&htim1);
+    write_to_flash(t_received, address_received, tick, cData);
+    t_received++;
+}
+
+void store_transmitted_data(char cData) {
+    uint32_t tick = HAL_GetTick();//__HAL_TIM_GET_COUNTER(&htim1);
+    write_to_flash(t_transmitted, address_received, tick, cData);
+    t_transmitted++;
+}
+
+void handle_recieved_data(char cData) {
+
+}
+
+int write_to_flash(uint32_t t, uint32_t address_beginning, uint32_t tick, uint32_t data)
+{
+    if (t > 65535) { // @todo calculate max memory
+        return 333; // no memory to store data
+    }
+      /* Unlock the Flash to enable the flash control register access *************/
+       HAL_FLASH_Unlock();
+
+       /* Erase the user Flash area*/
+
+      uint32_t StartPageAddress = address_beginning + t*5;
+      //uint64_t dataToWrite = voltageRaw + (amperageRaw >> 16);
+
+      if (HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, StartPageAddress, (uint64_t) tick) != HAL_OK) {
+          return HAL_FLASH_GetError ();
+      }
+
+      if (HAL_FLASH_Program(FLASH_TYPEPROGRAM_BYTE, StartPageAddress + 2, (uint64_t) data) != HAL_OK) {
+          return HAL_FLASH_GetError ();
+      }
+
+      /* Lock the Flash to disable the flash control register access (recommended
+          to protect the FLASH memory against possible unwanted operation) *********/
+      HAL_FLASH_Lock();
+
+      return 0;
+}
+
 
 /* USER CODE END 1 */
