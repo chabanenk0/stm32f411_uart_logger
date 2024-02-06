@@ -102,6 +102,9 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    char cData;
+      HAL_UART_Receive_IT(&huart2, (uint8_t*) &cData, 1);
+      store_received_data(cData);
   }
   /* USER CODE END 3 */
 }
@@ -201,7 +204,7 @@ static void MX_USART2_UART_Init(void)
 
   /* USER CODE END USART2_Init 1 */
   huart2.Instance = USART2;
-  huart2.Init.BaudRate = 100000;
+  huart2.Init.BaudRate = 115200;
   huart2.Init.WordLength = UART_WORDLENGTH_8B;
   huart2.Init.StopBits = UART_STOPBITS_1;
   huart2.Init.Parity = UART_PARITY_NONE;
@@ -236,6 +239,52 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+uint32_t address_received = 0x08003a00;
+uint32_t address_transmitted = 0x08103a00;
+uint32_t t_received = 0;
+uint32_t t_transmitted = 0;
+
+void store_received_data(char cData) 
+{
+    uint32_t tick = HAL_GetTick();//__HAL_TIM_GET_COUNTER(&htim1);
+    write_to_flash(t_received, address_received, tick, cData);
+    t_received++;
+}
+
+void store_transmitted_data(char cData) {
+    uint32_t tick = HAL_GetTick();//__HAL_TIM_GET_COUNTER(&htim1);
+    write_to_flash(t_transmitted, address_transmitted, tick, cData);
+    t_transmitted++;
+}
+
+void handle_recieved_data(char cData) {
+
+}
+
+int write_to_flash(uint32_t t, uint32_t address_beginning, uint32_t tick, uint32_t data)
+{
+    if (t > 65535) { // @todo calculate max memory
+        return 333; // no memory to store data
+    }
+      /* Unlock the Flash to enable the flash control register access *************/
+       HAL_FLASH_Unlock();
+
+       /* Erase the user Flash area*/
+
+      uint32_t StartPageAddress = address_beginning + t;
+
+      if (HAL_FLASH_Program(FLASH_TYPEPROGRAM_BYTE, StartPageAddress, (uint64_t) data) != HAL_OK) {
+          return HAL_FLASH_GetError ();
+      }
+
+      /* Lock the Flash to disable the flash control register access (recommended
+          to protect the FLASH memory against possible unwanted operation) *********/
+      HAL_FLASH_Lock();
+
+      return 0;
+}
+
 
 /* USER CODE END 4 */
 
