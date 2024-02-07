@@ -58,7 +58,7 @@ static void MX_USART2_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+#define BUFFER_SIZE 10
 /* USER CODE END 0 */
 
 /**
@@ -92,7 +92,14 @@ int main(void)
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
+char data[BUFFER_SIZE];
+uint64_t i = 0;
 
+for(i = 0; i < BUFFER_SIZE; i++) {
+  data[i] = 0;
+}
+
+i = 0;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -104,7 +111,13 @@ int main(void)
     /* USER CODE BEGIN 3 */
     char cData;
       HAL_UART_Receive_IT(&huart2, (uint8_t*) &cData, 1);
-      store_received_data(cData);
+      data[i] = cData;
+      i++;
+
+      if (i > BUFFER_SIZE - 1) {
+          store_received_data(data);
+      }
+
   }
   /* USER CODE END 3 */
 }
@@ -245,11 +258,11 @@ uint32_t address_transmitted = 0x08103a00;
 uint32_t t_received = 0;
 uint32_t t_transmitted = 0;
 
-void store_received_data(char cData) 
+void store_received_data(char * cData) 
 {
-    uint32_t tick = HAL_GetTick();//__HAL_TIM_GET_COUNTER(&htim1);
+    uint32_t tick = //HAL_GetTick();//__HAL_TIM_GET_COUNTER(&htim1);
     write_to_flash(t_received, address_received, tick, cData);
-    t_received++;
+    t_received = t_received + BUFFER_SIZE;
 }
 
 void store_transmitted_data(char cData) {
@@ -262,20 +275,22 @@ void handle_recieved_data(char cData) {
 
 }
 
-int write_to_flash(uint32_t t, uint32_t address_beginning, uint32_t tick, uint32_t data)
+int write_to_flash(uint32_t t, uint32_t address_beginning, uint32_t tick, char * data)
 {
-    if (t > 65535) { // @todo calculate max memory
-        return 333; // no memory to store data
-    }
       /* Unlock the Flash to enable the flash control register access *************/
        HAL_FLASH_Unlock();
 
        /* Erase the user Flash area*/
 
-      uint32_t StartPageAddress = address_beginning + t;
+      uint32_t StartPageAddress;
+      uint64_t i;
 
-      if (HAL_FLASH_Program(FLASH_TYPEPROGRAM_BYTE, StartPageAddress, (uint64_t) data) != HAL_OK) {
-          return HAL_FLASH_GetError ();
+      for(i = 0; i < BUFFER_SIZE; i++) {
+          StartPageAddress = address_beginning + t + i;
+
+          if (HAL_FLASH_Program(FLASH_TYPEPROGRAM_BYTE, StartPageAddress, (uint64_t) data[i]) != HAL_OK) {
+              return HAL_FLASH_GetError ();
+          }
       }
 
       /* Lock the Flash to disable the flash control register access (recommended
