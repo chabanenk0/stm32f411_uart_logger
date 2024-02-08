@@ -58,7 +58,12 @@ static void MX_USART2_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-#define BUFFER_SIZE 10
+#define BUFFER_SIZE 200
+#define MEMORY_LIMIT  412000
+
+uint32_t t_received = 0;
+uint32_t t_transmitted = 0;
+
 /* USER CODE END 0 */
 
 /**
@@ -114,10 +119,16 @@ i = 0;
       data[i] = cData;
       i++;
 
+      if (t_received > MEMORY_LIMIT) {
+        while (1) {
+            HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
+            HAL_Delay(1000);
+        }
+      }
+
       if (i > BUFFER_SIZE - 1) {
           store_received_data(data);
       }
-
   }
   /* USER CODE END 3 */
 }
@@ -184,7 +195,7 @@ static void MX_USART1_UART_Init(void)
 
   /* USER CODE END USART1_Init 1 */
   huart1.Instance = USART1;
-  huart1.Init.BaudRate = 100000;
+  huart1.Init.BaudRate = 115200;
   huart1.Init.WordLength = UART_WORDLENGTH_8B;
   huart1.Init.StopBits = UART_STOPBITS_1;
   huart1.Init.Parity = UART_PARITY_NONE;
@@ -241,11 +252,23 @@ static void MX_USART2_UART_Init(void)
   */
 static void MX_GPIO_Init(void)
 {
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
 /* USER CODE BEGIN MX_GPIO_Init_1 */
 /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
+  __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin : PC13 */
+  GPIO_InitStruct.Pin = GPIO_PIN_13;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
@@ -255,8 +278,6 @@ static void MX_GPIO_Init(void)
 
 uint32_t address_received = 0x08003a00;
 uint32_t address_transmitted = 0x08103a00;
-uint32_t t_received = 0;
-uint32_t t_transmitted = 0;
 
 void store_received_data(char * cData) 
 {
