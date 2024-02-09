@@ -99,6 +99,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
 char data[BUFFER_SIZE];
 uint64_t i = 0;
+char cData;
 
 for(i = 0; i < BUFFER_SIZE; i++) {
   data[i] = 0;
@@ -114,8 +115,12 @@ i = 0;
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    char cData;
-      HAL_UART_Receive_IT(&huart2, (uint8_t*) &cData, 1);
+      cData = 0;
+
+      if (HAL_UART_Receive(&huart2, (uint8_t*) &cData, sizeof(uint8_t), 1) != HAL_OK) {
+        continue;
+      }
+
       data[i] = cData;
       i++;
 
@@ -128,6 +133,7 @@ i = 0;
 
       if (i > BUFFER_SIZE - 1) {
           store_received_data(data);
+          i = 0;
       }
   }
   /* USER CODE END 3 */
