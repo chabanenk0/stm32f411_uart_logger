@@ -58,7 +58,7 @@ static void MX_USART2_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-#define BUFFER_SIZE 200
+#define BUFFER_SIZE 600
 #define MEMORY_LIMIT  412000
 
 uint32_t t_received = 0;
@@ -115,14 +115,15 @@ i = 0;
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-      cData = 0;
-
-      if (HAL_UART_Receive(&huart2, (uint8_t*) &cData, sizeof(uint8_t), 1) != HAL_OK) {
+      if (HAL_UART_Receive(&huart2, (uint8_t*) data, BUFFER_SIZE, 20000) != HAL_OK) {
         continue;
       }
 
-      data[i] = cData;
-      i++;
+      store_received_data(data);
+
+      for(i = 0; i < BUFFER_SIZE; i++) {
+          data[i] = 0;
+      }
 
       if (t_received > MEMORY_LIMIT) {
         while (1) {
@@ -131,10 +132,6 @@ i = 0;
         }
       }
 
-      if (i > BUFFER_SIZE - 1) {
-          store_received_data(data);
-          i = 0;
-      }
   }
   /* USER CODE END 3 */
 }
