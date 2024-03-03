@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
-#include "crsf.h"
+#include "Core/Inc/crsf.h"
 
 #define DUMP_DATA_POSITION 0x3A00
 
@@ -24,6 +24,36 @@ int data_read(uint8_t * data, int n, int sourceId)
     return -1;
 }
 
+void printCsvLine(FILE * csvFile, struct crsfPacket_s *crsf_packet, 
+    struct crsfPayloadLinkstatistics_s* crsf_link_statistics, 
+    struct crsfPayloadAttitude_s * crsf_attitude, uint32_t dump_position, uint32_t crc_failures_count
+    )
+{
+        // Write channel data to CSV file
+    fprintf(csvFile, "0x%0X,%u,0x%0X,%u,", crsf_packet->device_id, crsf_packet->frame_size, crsf_packet->frame_type, crsf_packet->crc);
+
+    for (int i = 0; i < 16; i++) {
+        fprintf(csvFile, "%d,", crsf_packet->received_channels[i]);
+    }
+
+    fprintf(csvFile, "%d,", (int) crsf_link_statistics->uplink_RSSI_1);
+    fprintf(csvFile, "%d,", (int) crsf_link_statistics->uplink_RSSI_2);
+    fprintf(csvFile, "%d,", (int) crsf_link_statistics->uplink_Link_quality);
+    fprintf(csvFile, "%d,", (int) crsf_link_statistics->uplink_SNR);
+    fprintf(csvFile, "%d,", (int) crsf_link_statistics->active_antenna);
+    fprintf(csvFile, "%d,", (int) crsf_link_statistics->rf_Mode);
+    fprintf(csvFile, "%d,", (int) crsf_link_statistics->uplink_TX_Power);
+    fprintf(csvFile, "%d,", (int) crsf_link_statistics->downlink_RSSI);
+    fprintf(csvFile, "%d,", (int) crsf_link_statistics->downlink_Link_quality);
+    fprintf(csvFile, "%d,", (int) crsf_link_statistics->downlink_SNR);
+    fprintf(csvFile, "%d,", (int) crsf_attitude->pitch);
+    fprintf(csvFile, "%d,", (int) crsf_attitude->roll);
+    fprintf(csvFile, "%d,", (int) crsf_attitude->yaw);
+    fprintf(csvFile, "%d,", (int) crc_failures_count);
+    fprintf(csvFile, "%X", (int) dump_position);
+    fprintf(csvFile, "\n");
+
+}
 
 int main() {
     FILE *csvFile;
@@ -78,7 +108,8 @@ int main() {
         dump_position = ftell(dumpFile);
 
         if (crc_fact == crc) {
-            processCrsfFrame(data + buffer_position + 2, device_id, frame_size, crc, csvFile, crc_failures_count, dump_position, &crsf_packet, &CRSF_LinkStatistics, &CRSF_Attitude);
+            processCrsfFrame(data + buffer_position + 2, device_id, frame_size, crc, crc_failures_count, &crsf_packet, &CRSF_LinkStatistics, &CRSF_Attitude);
+            printCsvLine(csvFile, &crsf_packet, &CRSF_LinkStatistics, &CRSF_Attitude, dump_position, crc_failures_count);
             //buffer_position = buffer_position + frame_size + 2;
             buffer_position = 0;
             previously_read = 0;

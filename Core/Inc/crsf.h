@@ -124,7 +124,11 @@ int calculateCRC(uint8_t * data, uint16_t position, uint8_t frame_size)
     return crc;
 }
 
-void processCrsfFrame(uint8_t * data, uint8_t device_id, uint8_t frame_size, uint8_t crc, FILE * csvFile, uint32_t crc_failures_count, uint32_t dump_position, struct crsfPacket_s *crsf_packet, struct crsfPayloadLinkstatistics_s* crsf_link_statistics, struct crsfPayloadAttitude_s * crsf_attitude)
+void processCrsfFrame(uint8_t * data, uint8_t device_id, uint8_t frame_size, uint8_t crc,
+   uint32_t crc_failures_count, struct crsfPacket_s *crsf_packet, 
+   struct crsfPayloadLinkstatistics_s* crsf_link_statistics, 
+   struct crsfPayloadAttitude_s * crsf_attitude
+   )
 {
     uint8_t frame_type = data[0];
     crsf_packet->device_id = device_id;
@@ -177,30 +181,6 @@ void processCrsfFrame(uint8_t * data, uint8_t device_id, uint8_t frame_size, uin
         }
 //        default: // undefined frame
     }
-
-    // Write channel data to CSV file
-    fprintf(csvFile, "0x%0X,%u,0x%0X,%u,", crsf_packet->device_id, crsf_packet->frame_size, crsf_packet->frame_type, crsf_packet->crc);
-
-    for (int i = 0; i < 16; i++) {
-        fprintf(csvFile, "%d,", crsf_packet->received_channels[i]);
-    }
-
-    fprintf(csvFile, "%d,", (int) crsf_link_statistics->uplink_RSSI_1);
-    fprintf(csvFile, "%d,", (int) crsf_link_statistics->uplink_RSSI_2);
-    fprintf(csvFile, "%d,", (int) crsf_link_statistics->uplink_Link_quality);
-    fprintf(csvFile, "%d,", (int) crsf_link_statistics->uplink_SNR);
-    fprintf(csvFile, "%d,", (int) crsf_link_statistics->active_antenna);
-    fprintf(csvFile, "%d,", (int) crsf_link_statistics->rf_Mode);
-    fprintf(csvFile, "%d,", (int) crsf_link_statistics->uplink_TX_Power);
-    fprintf(csvFile, "%d,", (int) crsf_link_statistics->downlink_RSSI);
-    fprintf(csvFile, "%d,", (int) crsf_link_statistics->downlink_Link_quality);
-    fprintf(csvFile, "%d,", (int) crsf_link_statistics->downlink_SNR);
-    fprintf(csvFile, "%d,", (int) crsf_attitude->pitch);
-    fprintf(csvFile, "%d,", (int) crsf_attitude->roll);
-    fprintf(csvFile, "%d,", (int) crsf_attitude->yaw);
-    fprintf(csvFile, "%d,", (int) crc_failures_count);
-    fprintf(csvFile, "%X", (int) dump_position);
-    fprintf(csvFile, "\n");
 }
 
 int data_read(uint8_t * data, int n, int sourceId);
