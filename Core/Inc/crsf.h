@@ -1,3 +1,6 @@
+#include<stdio.h>
+#include<string.h>
+
 #define BUFFER_SIZE 512
 
 #define CRSF_SYNC_BYTE 0XC8

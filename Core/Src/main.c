@@ -60,7 +60,7 @@ static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
 void clear_link_statistics(struct crsfPayloadLinkstatistics_s* crsf_link_statistics);
 void processCrsfFrame(uint8_t * data, uint8_t device_id, uint8_t frame_size, uint8_t crc, uint32_t crc_failures_count, struct crsfPacket_s *crsf_packet, struct crsfPayloadLinkstatistics_s* crsf_link_statistics, struct crsfPayloadAttitude_s * crsf_attitude);
-#define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
+int write_to_flash(uint32_t t, uint32_t address_beginning, uint32_t tick, char * data);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -335,25 +335,25 @@ static void MX_GPIO_Init(void)
 uint32_t address_received = 0x08003a00;
 uint32_t address_transmitted = 0x08103a00;
 
-
-PUTCHAR_PROTOTYPE
+int __io_putchar(int ch)
 {
   /* Place your implementation of fputc here */
   /* e.g. write a character to the USART1 and Loop until the end of transmission */
-  HAL_UART_Transmit(&huart2, (uint8_t *)&ch, 1, 0xFFFF);
+  //HAL_UART_Transmit(&huart2, (uint8_t *)&ch, 1, 0xFFFF);
+  ITM_SendChar(ch);
 
   return ch;
 }
 void store_received_data(char * cData) 
 {
-    uint32_t tick = //HAL_GetTick();//__HAL_TIM_GET_COUNTER(&htim1);
+    uint32_t tick = 0;//HAL_GetTick();//__HAL_TIM_GET_COUNTER(&htim1);
     write_to_flash(t_received, address_received, tick, cData);
     t_received = t_received + BUFFER_SIZE;
 }
 
 void store_transmitted_data(char cData) {
     uint32_t tick = HAL_GetTick();//__HAL_TIM_GET_COUNTER(&htim1);
-    write_to_flash(t_transmitted, address_transmitted, tick, cData);
+    write_to_flash(t_transmitted, address_transmitted, tick, &cData);
     t_transmitted++;
 }
 
