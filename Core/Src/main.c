@@ -22,7 +22,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -54,11 +54,14 @@ static void MX_GPIO_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
-
+extern uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+#define BUFFER_SIZE 5
+char buffer[256];
+uint8_t data[BUFFER_SIZE];
 
 /* USER CODE END 0 */
 
@@ -69,7 +72,6 @@ static void MX_USART2_UART_Init(void);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -94,6 +96,15 @@ int main(void)
   MX_USART2_UART_Init();
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
+  sprintf(buffer, "Hello, world!");
+  CDC_Transmit_FS((uint8_t *)buffer,strlen(buffer));
+  sprintf(buffer, "\nStarting receiving data from main...\n");
+  CDC_Transmit_FS((uint8_t *)buffer,strlen(buffer));
+
+  if (HAL_UART_Receive_IT(&huart2, data, BUFFER_SIZE) != HAL_OK) {
+     sprintf(buffer, "UART read error!\n");
+     CDC_Transmit_FS((uint8_t *)buffer,strlen((char*)buffer));
+  }
 
   /* USER CODE END 2 */
 
@@ -104,6 +115,15 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+
+    sprintf(buffer, "Main: infinite loop... Buffer contains:\n", BUFFER_SIZE);
+    CDC_Transmit_FS((uint8_t *)buffer,strlen((char*)buffer));
+    
+    for(int i = 0; i < BUFFER_SIZE; i++) {
+      sprintf(buffer, "%02x ", data[i]);
+      CDC_Transmit_FS((uint8_t *)buffer,strlen((char*)buffer));
+    }
+
   }
   /* USER CODE END 3 */
 }
@@ -169,7 +189,7 @@ static void MX_USART1_UART_Init(void)
 
   /* USER CODE END USART1_Init 1 */
   huart1.Instance = USART1;
-  huart1.Init.BaudRate = 115200;
+  huart1.Init.BaudRate = 420000;
   huart1.Init.WordLength = UART_WORDLENGTH_8B;
   huart1.Init.StopBits = UART_STOPBITS_1;
   huart1.Init.Parity = UART_PARITY_NONE;
@@ -202,7 +222,7 @@ static void MX_USART2_UART_Init(void)
 
   /* USER CODE END USART2_Init 1 */
   huart2.Instance = USART2;
-  huart2.Init.BaudRate = 115200;
+  huart2.Init.BaudRate = 420000;
   huart2.Init.WordLength = UART_WORDLENGTH_8B;
   huart2.Init.StopBits = UART_STOPBITS_1;
   huart2.Init.Parity = UART_PARITY_NONE;
@@ -238,7 +258,34 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *UartHandle)
+{
+    sprintf(buffer, "RxCpltCallback called.\n");
+    CDC_Transmit_FS((uint8_t *)buffer,strlen((char*)buffer));
 
+  if (UartHandle->Instance == huart2.Instance)
+  {
+               
+    sprintf(buffer, "RxCpltCallback... Buffer contains:\n", BUFFER_SIZE);
+    CDC_Transmit_FS((uint8_t *)buffer,strlen((char*)buffer));
+    
+    for(int i = 0; i < BUFFER_SIZE; i++) {
+      sprintf(buffer, "%02x ", data[i]);
+      CDC_Transmit_FS((uint8_t *)buffer,strlen((char*)buffer));
+    }
+                
+              //I need to clear overrun flag
+             //__HAL_UART_CLEAR_OREFLAG(&huart2);
+               //I need to flush rx data, otherwise RX interrupt will fire immidiately
+              //__HAL_UART_SEND_REQ(&huart2, UART_RXDATA_FLUSH_REQUEST);
+ 
+               //reactivate uart interrupt for 1 byte
+    if (HAL_UART_Receive_IT(&huart2, data, BUFFER_SIZE) != HAL_OK) {
+      sprintf(buffer, "UART read error!\n");
+      CDC_Transmit_FS((uint8_t *)buffer,strlen((char*)buffer));
+    }
+  }
+}
 /* USER CODE END 4 */
 
 /**
