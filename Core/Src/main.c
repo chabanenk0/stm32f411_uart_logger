@@ -23,6 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <string.h>
+#include "crsf.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -45,6 +46,9 @@ UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
+CRSF_Packet crsf_packet;
+struct crsfPayloadAttitude_s CRSF_Attitude;
+struct crsfPayloadLinkstatistics_s CRSF_LinkStatistics;
 
 /* USER CODE END PV */
 
@@ -55,13 +59,21 @@ static void MX_USART1_UART_Init(void);
 static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
 extern uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len);
+void clear_link_statistics(struct crsfPayloadLinkstatistics_s* crsf_link_statistics);
+void processCrsfFrame(uint8_t * data, uint8_t device_id, uint8_t frame_size, uint8_t crc, uint32_t crc_failures_count, struct crsfPacket_s *crsf_packet, struct crsfPayloadLinkstatistics_s* crsf_link_statistics, struct crsfPayloadAttitude_s * crsf_attitude);
+int write_to_flash(uint32_t t, uint32_t address_beginning, uint32_t tick, char * data);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-#define BUFFER_SIZE 5
 char buffer[256];
-uint8_t data[BUFFER_SIZE];
+#define MEMORY_LIMIT  412000
+
+uint32_t t_received = 0;
+uint32_t t_transmitted = 0;
+uint16_t buffer_position, previously_read;
+uint8_t device_id;
+uint8_t frame_size;
 
 /* USER CODE END 0 */
 
@@ -96,16 +108,28 @@ int main(void)
   MX_USART2_UART_Init();
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
-  sprintf(buffer, "Hello, world!");
-  CDC_Transmit_FS((uint8_t *)buffer,strlen(buffer));
-  sprintf(buffer, "\nStarting receiving data from main...\n");
+  HAL_Delay(5000);
+  sprintf(buffer, "Delay passed...\nHello, world!");
   CDC_Transmit_FS((uint8_t *)buffer,strlen(buffer));
 
-  if (HAL_UART_Receive_IT(&huart2, data, BUFFER_SIZE) != HAL_OK) {
-     sprintf(buffer, "UART read error!\n");
-     CDC_Transmit_FS((uint8_t *)buffer,strlen((char*)buffer));
-  }
+    uint8_t data[BUFFER_SIZE];
+    uint8_t crc;
+    uint64_t i = 0, ii = 0;
 
+    for(i = 0; i < BUFFER_SIZE; i++) {
+        data[i] = 0;
+    }
+
+    i = 0;
+    uint32_t crc_failures_count = 0;
+    clear_link_statistics(&CRSF_LinkStatistics);
+    clear_attitude(&CRSF_Attitude);
+    buffer_position = 0;
+    previously_read = 0;
+
+    sprintf(buffer, "\nStarting receiving data from main...\n");
+    CDC_Transmit_FS((uint8_t *)buffer,strlen(buffer));
+    previously_read = readFromSource(1, data, buffer_position, previously_read, 1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -116,14 +140,84 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
-    sprintf(buffer, "Main: infinite loop... Buffer contains:\n", BUFFER_SIZE);
+    sprintf(buffer, "Main: infinite loop...\n");
     CDC_Transmit_FS((uint8_t *)buffer,strlen((char*)buffer));
-    
-    for(int i = 0; i < BUFFER_SIZE; i++) {
-      sprintf(buffer, "%02x ", data[i]);
-      CDC_Transmit_FS((uint8_t *)buffer,strlen((char*)buffer));
-    }
+        previously_read = readFromSource(1, data, buffer_position + 1, previously_read, 1);
+        if (buffer_position > previously_read) {
+            buffer_position = buffer_position - BUFFER_SIZE;
+        }
+        device_id = data[buffer_position];
+        frame_size = data[buffer_position + 1];
+        printf("frame size: %d\n", frame_size);
+        previously_read = readFromSource(1, data, buffer_position + 2, previously_read, frame_size);
 
+        if (buffer_position > previously_read) {
+            printf("array shifting happened\n");
+            buffer_position = 0;//buffer_position - BUFFER_SIZE;
+        }
+
+        crc = data[buffer_position + frame_size + 1];
+        uint8_t crc_fact = calculateCRC(data, buffer_position + 2, frame_size);
+
+        if (crc_fact == crc) {
+            processCrsfFrame(data + buffer_position + 2, device_id, frame_size, crc, crc_failures_count, &crsf_packet, &CRSF_LinkStatistics, &CRSF_Attitude);
+            //buffer_position = buffer_position + frame_size + 2;
+            buffer_position = 0;
+            previously_read = 0;
+
+            for(i = 0; i < BUFFER_SIZE; i++) {
+                data[i] = 0;
+            }
+
+            printf("crc ok, crc = %d, frame_size: %d, dump_position = %d (%X), buffer_position: %d, previously read: %d\n", crc, frame_size, 0, 0, buffer_position, previously_read);
+        } else {
+            crc_failures_count++;
+            // search for another beginning
+            printf("CRC failed: crc fact: %d,  crc read: %d\n", crc_fact, crc);
+            printf("frame_size: %d, dump_position = %d (%X), buffer_position: %d, previously read: %d\n", frame_size, 0, 0, buffer_position, previously_read);
+            uint8_t found = 0;
+
+            for(uint16_t i = buffer_position + 1; i < buffer_position + frame_size; i++) {
+                printf("Searching for new beginning in buffer, i=%d, data[i]=%0X, dump position: %d", i, data[i], 0);
+                if (i > previously_read) {
+                    buffer_position = 0;
+                    previously_read = 0;
+
+                    for(ii = 0; ii < BUFFER_SIZE; ii++) {
+                        data[ii] = 0;
+                    }
+
+                    break;
+                }
+
+                if (data[i] == CRSF_SYNC_BYTE) {
+                    buffer_position = i;
+                    printf("- Found!");
+                    found = 1;
+                    break;
+                }
+
+                printf("\n");
+            }
+
+            if (!found) {
+                buffer_position = 0;
+
+                do {
+                    readFromSource(1, data, buffer_position, 0, 1);
+                    printf("Searching for new beginning in file, dump position: %X (%d), char: %x", 0, 0, data[buffer_position]);
+                } while(data[buffer_position] != CRSF_SYNC_BYTE);
+
+                previously_read = 1;
+            }
+        }
+
+      if (t_received > MEMORY_LIMIT) {
+        while (1) {
+            HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
+            HAL_Delay(1000);
+        }
+      }
   }
   /* USER CODE END 3 */
 }
@@ -258,34 +352,96 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *UartHandle)
-{
-    sprintf(buffer, "RxCpltCallback called.\n");
-    CDC_Transmit_FS((uint8_t *)buffer,strlen((char*)buffer));
 
-  if (UartHandle->Instance == huart2.Instance)
-  {
-               
-    sprintf(buffer, "RxCpltCallback... Buffer contains:\n", BUFFER_SIZE);
-    CDC_Transmit_FS((uint8_t *)buffer,strlen((char*)buffer));
-    
-    for(int i = 0; i < BUFFER_SIZE; i++) {
-      sprintf(buffer, "%02x ", data[i]);
-      CDC_Transmit_FS((uint8_t *)buffer,strlen((char*)buffer));
-    }
-                
-              //I need to clear overrun flag
-             //__HAL_UART_CLEAR_OREFLAG(&huart2);
-               //I need to flush rx data, otherwise RX interrupt will fire immidiately
-              //__HAL_UART_SEND_REQ(&huart2, UART_RXDATA_FLUSH_REQUEST);
- 
-               //reactivate uart interrupt for 1 byte
-    if (HAL_UART_Receive_IT(&huart2, data, BUFFER_SIZE) != HAL_OK) {
-      sprintf(buffer, "UART read error!\n");
-      CDC_Transmit_FS((uint8_t *)buffer,strlen((char*)buffer));
-    }
-  }
+uint32_t address_received = 0x08003a00;
+uint32_t address_transmitted = 0x08103a00;
+
+int __io_putchar(int ch)
+{
+  /* Place your implementation of fputc here */
+  /* e.g. write a character to the USART1 and Loop until the end of transmission */
+  //HAL_UART_Transmit(&huart2, (uint8_t *)&ch, 1, 0xFFFF);
+  // ITM_SendChar(ch);
+  CDC_Transmit_FS((uint8_t *)&ch, 1);
+
+  return ch;
 }
+
+int _write(int file, char *ptr, int len) {
+    static uint8_t rc = USBD_OK;
+
+    do {
+        rc = CDC_Transmit_FS(ptr, len);
+    } while (USBD_BUSY == rc);
+
+    if (USBD_FAIL == rc) {
+        /// NOTE: Should never reach here.
+        /// TODO: Handle this error.
+        return 0;
+    }
+    return len;
+}
+
+void store_received_data(char * cData) 
+{
+    uint32_t tick = 0;//HAL_GetTick();//__HAL_TIM_GET_COUNTER(&htim1);
+    write_to_flash(t_received, address_received, tick, cData);
+    t_received = t_received + BUFFER_SIZE;
+}
+
+void store_transmitted_data(char cData) {
+    uint32_t tick = HAL_GetTick();//__HAL_TIM_GET_COUNTER(&htim1);
+    write_to_flash(t_transmitted, address_transmitted, tick, &cData);
+    t_transmitted++;
+}
+
+void handle_recieved_data(char cData) {
+
+}
+
+int write_to_flash(uint32_t t, uint32_t address_beginning, uint32_t tick, char * data)
+{
+      /* Unlock the Flash to enable the flash control register access *************/
+       HAL_FLASH_Unlock();
+
+       /* Erase the user Flash area*/
+
+      uint32_t StartPageAddress;
+      uint64_t i;
+
+      for(i = 0; i < BUFFER_SIZE; i++) {
+          StartPageAddress = address_beginning + t + i;
+
+          if (HAL_FLASH_Program(FLASH_TYPEPROGRAM_BYTE, StartPageAddress, (uint64_t) data[i]) != HAL_OK) {
+              return HAL_FLASH_GetError ();
+          }
+      }
+
+      /* Lock the Flash to disable the flash control register access (recommended
+          to protect the FLASH memory against possible unwanted operation) *********/
+      HAL_FLASH_Lock();
+
+      return 0;
+}
+
+int data_read(uint8_t * data, int n, int sourceId)
+{
+    UART_HandleTypeDef huart;
+    if (1 == sourceId) {
+        huart = huart2;
+    } else if (2 == sourceId) {
+        huart = huart1;
+    } else {
+        return -1;
+    }
+
+    if (HAL_UART_Receive(&huart, (uint8_t*) data, n, 20000) == HAL_OK) {
+        return n;
+    }
+
+    return -2;
+}
+
 /* USER CODE END 4 */
 
 /**
