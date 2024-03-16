@@ -17,6 +17,7 @@
   */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
+#include <stdio.h>
 #include "main.h"
 #include "usb_device.h"
 
@@ -109,8 +110,7 @@ int main(void)
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
   HAL_Delay(5000);
-  sprintf(buffer, "Delay passed...\nHello, world!");
-  CDC_Transmit_FS((uint8_t *)buffer,strlen(buffer));
+  printf("Delay passed...\nHello, world!");
 
     uint8_t data[BUFFER_SIZE];
     uint8_t crc;
@@ -127,9 +127,14 @@ int main(void)
     buffer_position = 0;
     previously_read = 0;
 
-    sprintf(buffer, "\nStarting receiving data from main...\n");
-    CDC_Transmit_FS((uint8_t *)buffer,strlen(buffer));
-    previously_read = readFromSource(1, data, buffer_position, previously_read, 1);
+    printf("\nStarting receiving data from main...\n");
+    do {
+        readFromSource(1, data, buffer_position, 0, 1);
+        printf("Searching for new beginning char: %x", (int) data[buffer_position]);
+    } while(data[buffer_position] != CRSF_SYNC_BYTE);
+
+    previously_read++;
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -140,16 +145,32 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
-    sprintf(buffer, "Main: infinite loop...\n");
-    CDC_Transmit_FS((uint8_t *)buffer,strlen((char*)buffer));
+        printf("Main: infinite loop...\n");
         previously_read = readFromSource(1, data, buffer_position + 1, previously_read, 1);
+        if (0) {
+          printf("Buffer after read 1:\n");
+          for(ii = 0; ii < previously_read; ii++) {
+              printf("ii = %d, ", (int)ii);
+              printf("data[ii] = %X\n", (int)data[ii]);
+          }
+        }
+
         if (buffer_position > previously_read) {
             buffer_position = buffer_position - BUFFER_SIZE;
         }
         device_id = data[buffer_position];
+        printf("device id: %d (hex=%x)\n", (int)device_id, (int)device_id);
         frame_size = data[buffer_position + 1];
-        printf("frame size: %d\n", frame_size);
+        printf("frame size: %d (hex=%x)\n", (int)frame_size, (int)frame_size);
         previously_read = readFromSource(1, data, buffer_position + 2, previously_read, frame_size);
+        
+        if (0) {
+          printf("Buffer after read frame:\n");
+          for(ii = 0; ii < previously_read; ii++) {
+              printf("ii = %d, ", (int)ii);
+              printf("data[ii] = %X\n", (int)data[ii]);
+          }
+        }
 
         if (buffer_position > previously_read) {
             printf("array shifting happened\n");
@@ -161,15 +182,15 @@ int main(void)
 
         if (crc_fact == crc) {
             processCrsfFrame(data + buffer_position + 2, device_id, frame_size, crc, crc_failures_count, &crsf_packet, &CRSF_LinkStatistics, &CRSF_Attitude);
-            //buffer_position = buffer_position + frame_size + 2;
-            buffer_position = 0;
-            previously_read = 0;
+            buffer_position = buffer_position + frame_size + 2;
+            //previously_read = 0;
 
-            for(i = 0; i < BUFFER_SIZE; i++) {
-                data[i] = 0;
-            }
+            //for(i = 0; i < BUFFER_SIZE; i++) {
+            //    data[i] = 0;
+            //}
 
             printf("crc ok, crc = %d, frame_size: %d, dump_position = %d (%X), buffer_position: %d, previously read: %d\n", crc, frame_size, 0, 0, buffer_position, previously_read);
+            previously_read = readFromSource(1, data, buffer_position, previously_read, 1);
         } else {
             crc_failures_count++;
             // search for another beginning
@@ -178,7 +199,7 @@ int main(void)
             uint8_t found = 0;
 
             for(uint16_t i = buffer_position + 1; i < buffer_position + frame_size; i++) {
-                printf("Searching for new beginning in buffer, i=%d, data[i]=%0X, dump position: %d", i, data[i], 0);
+                printf("Searching for new beginning in buffer, i=%d, data[i]=%0X, dump position: %d\n", i, data[i], 0);
                 if (i > previously_read) {
                     buffer_position = 0;
                     previously_read = 0;
@@ -205,7 +226,7 @@ int main(void)
 
                 do {
                     readFromSource(1, data, buffer_position, 0, 1);
-                    printf("Searching for new beginning in file, dump position: %X (%d), char: %x", 0, 0, data[buffer_position]);
+                    printf("Searching for new beginning in file, dump position: %X (%d), char: %x\n", 0, 0, data[buffer_position]);
                 } while(data[buffer_position] != CRSF_SYNC_BYTE);
 
                 previously_read = 1;

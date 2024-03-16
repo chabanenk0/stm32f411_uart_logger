@@ -121,7 +121,7 @@ int calculateCRC(uint8_t * data, uint16_t position, uint8_t frame_size)
 
     for (int ii = position; ii < position + frame_size - 1; ++ii) {
         crc = crc8_dvb_s2(crc, data[ii]);
-        printf("crc calc, ii=%d, data[ii]=%x, crc =%x\n", ii, data[ii], crc);
+        //printf("crc calc, ii=%d, data[ii]=%x, crc =%x\n", ii, data[ii], crc);
     }
 
     return crc;
@@ -204,7 +204,7 @@ void processCrsfFrame(uint8_t * data, uint8_t device_id, uint8_t frame_size, uin
         printf("roll: %d\n", (int) crsf_attitude->roll);
         printf("yaw: %d\n", (int) crsf_attitude->yaw);
         printf("crc_failures_count: %d\n", (int) crc_failures_count);
-        printf("tick: %d\n", HAL_GetTick());
+        printf("tick: %d\n", (int)HAL_GetTick());
     }
 }
 
@@ -224,7 +224,7 @@ int readFromSource(int sourceId, uint8_t * data, uint16_t buffer_position, uint1
     if (buffer_position + n > previously_read) {
         bytesRead = data_read(data + previously_read, buffer_position + n - previously_read, sourceId);
 
-        printf("read %d bytes\n", (int)bytesRead);
+        printf("read %d bytes, starting from %d\n", (int)bytesRead, (int)previously_read);
 
         if (bytesRead != sizeof(uint8_t) * (buffer_position + n - previously_read)) {
             printf("Error reading the data\n");
