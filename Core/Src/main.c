@@ -62,7 +62,6 @@ static void MX_USART2_UART_Init(void);
 extern uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len);
 void clear_link_statistics(struct crsfPayloadLinkstatistics_s* crsf_link_statistics);
 void processCrsfFrame(uint8_t * data, uint8_t device_id, uint8_t frame_size, uint8_t crc, uint32_t crc_failures_count, struct crsfPacket_s *crsf_packet, struct crsfPayloadLinkstatistics_s* crsf_link_statistics, struct crsfPayloadAttitude_s * crsf_attitude);
-int write_to_flash(uint32_t t, uint32_t address_beginning, uint32_t tick, char * data);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -76,6 +75,24 @@ uint32_t t_transmitted = 0;
 uint16_t buffer_position, previously_read;
 uint8_t device_id;
 uint8_t frame_size;
+
+typedef struct data_for_flash {
+  uint8_t beginning_marker;
+  uint32_t tick;
+  uint16_t rx_pitch;
+  uint16_t rx_roll;
+  uint16_t rx_yaw;
+  uint16_t rx_trottle;
+  uint16_t rx_arm;
+  uint pitch;
+  uint roll;
+  uint yaw;
+  uint8_t uplink_quality;
+  uint8_t downlink_quality;
+  char flight_mode[4];
+} data_for_flash_s;
+
+struct data_for_flash data_for_flash_obj;
 
 /* USER CODE END 0 */
 
@@ -129,6 +146,7 @@ int main(void)
     clear_attitude(&CRSF_Attitude);
     buffer_position = 0;
     previously_read = 0;
+    uint32_t position = 0;
 
     if (verbose > 1) {
         printf("\nStarting receiving data from main...\n");
@@ -200,6 +218,7 @@ int main(void)
 
         if (crc_fact == crc) {
             processCrsfFrame(data + buffer_position + 2, device_id, frame_size, crc, crc_failures_count, &crsf_packet, &CRSF_LinkStatistics, &CRSF_Attitude);
+            position = position + saveCurrentState(&data_for_flash_obj, position, &crsf_packet, &CRSF_LinkStatistics, &CRSF_Attitude);
             buffer_position = buffer_position + frame_size + 2;
             //previously_read = 0;
 
@@ -399,7 +418,7 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
-uint32_t address_received = 0x08003a00;
+uint32_t address_received = 0x08007000;
 uint32_t address_transmitted = 0x08103a00;
 
 int __io_putchar(int ch)
@@ -408,12 +427,13 @@ int __io_putchar(int ch)
   /* e.g. write a character to the USART1 and Loop until the end of transmission */
   //HAL_UART_Transmit(&huart2, (uint8_t *)&ch, 1, 0xFFFF);
   // ITM_SendChar(ch);
-  CDC_Transmit_FS((uint8_t *)&ch, 1);
+  //CDC_Transmit_FS((uint8_t *)&ch, 1);
 
   return ch;
 }
 
 int _write(int file, char *ptr, int len) {
+    return len;
     static uint8_t rc = USBD_OK;
 
     do {
@@ -445,20 +465,18 @@ void handle_recieved_data(char cData) {
 
 }
 
-int write_to_flash(uint32_t t, uint32_t address_beginning, uint32_t tick, char * data)
+int write_to_flash(uint32_t t, uint32_t address_beginning, char * data, int item_size)
 {
       /* Unlock the Flash to enable the flash control register access *************/
        HAL_FLASH_Unlock();
 
        /* Erase the user Flash area*/
 
-      uint32_t StartPageAddress;
+      uint32_t flashAddress = address_beginning + t*item_size;
       uint64_t i;
 
-      for(i = 0; i < BUFFER_SIZE; i++) {
-          StartPageAddress = address_beginning + t + i;
-
-          if (HAL_FLASH_Program(FLASH_TYPEPROGRAM_BYTE, StartPageAddress, (uint64_t) data[i]) != HAL_OK) {
+      for(i = 0; i < item_size; i++, flashAddress++) {
+          if (HAL_FLASH_Program(FLASH_TYPEPROGRAM_BYTE, flashAddress, (uint64_t) data[i]) != HAL_OK) {
               return HAL_FLASH_GetError ();
           }
       }
@@ -486,6 +504,88 @@ int data_read(uint8_t * data, int n, int sourceId)
     }
 
     return -2;
+}
+
+int saveCurrentState(
+  struct data_for_flash * data_for_flash_p,
+  int position,
+  struct crsfPacket_s * crsf_packet,
+  struct crsfPayloadLinkstatistics_s * crsf_link_statistics, 
+  struct crsfPayloadAttitude_s * crsf_attitude
+) {
+  int dataChanged = 0;
+
+  if (data_for_flash_p->rx_pitch != crsf_packet->received_channels[0])
+  {
+     dataChanged = 1;
+     data_for_flash_p->rx_pitch = crsf_packet->received_channels[0];
+  }
+
+  if (data_for_flash_p->rx_roll != crsf_packet->received_channels[1])
+  {
+     dataChanged = 1;
+     data_for_flash_p->rx_roll = crsf_packet->received_channels[1];
+  }
+
+  if (data_for_flash_p->rx_yaw != crsf_packet->received_channels[2])
+  {
+     dataChanged = 1;
+     data_for_flash_p->rx_yaw = crsf_packet->received_channels[2];
+  }
+
+  if (data_for_flash_p->rx_trottle != crsf_packet->received_channels[3])
+  {
+     dataChanged = 1;
+     data_for_flash_p->rx_trottle = crsf_packet->received_channels[3];
+  }
+
+  if (data_for_flash_p->rx_arm != crsf_packet->received_channels[4])
+  {
+     dataChanged = 1;
+     data_for_flash_p->rx_arm = crsf_packet->received_channels[4];
+  }
+
+  if (data_for_flash_p->pitch != crsf_attitude->pitch)
+  {
+     dataChanged = 1;
+     data_for_flash_p->pitch = crsf_attitude->pitch;
+  }
+
+  if (data_for_flash_p->roll != crsf_attitude->roll)
+  {
+     dataChanged = 1;
+     data_for_flash_p->roll = crsf_attitude->roll;
+  }
+
+  if (data_for_flash_p->yaw != crsf_attitude->yaw)
+  {
+     dataChanged = 1;
+     data_for_flash_p->yaw = crsf_attitude->yaw;
+  }
+
+  if (data_for_flash_p->uplink_quality != crsf_link_statistics->uplink_Link_quality)
+  {
+     dataChanged = 1;
+     data_for_flash_p->uplink_quality = crsf_link_statistics->uplink_Link_quality;
+  }
+
+    if (data_for_flash_p->downlink_quality != crsf_link_statistics->downlink_Link_quality)
+  {
+     dataChanged = 1;
+     data_for_flash_p->downlink_quality = crsf_link_statistics->downlink_Link_quality;
+  }
+
+  if (dataChanged) {
+    data_for_flash_p->tick = (uint64_t) HAL_GetTick();
+    data_for_flash_p->beginning_marker = 0xee;
+    write_to_flash(position, address_received, (char *)data_for_flash_p, sizeof(struct data_for_flash));
+    printf("Position saved, position: %d, size: %d, \n", (int)position, (int)sizeof(struct data_for_flash));
+    return 1;
+  } else {
+    printf("Position is the same. No save.");
+    return 0;
+  }
+
 }
 
 /* USER CODE END 4 */
