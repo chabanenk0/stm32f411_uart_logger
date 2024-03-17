@@ -215,10 +215,20 @@ int readFromSource(int sourceId, uint8_t * data, uint16_t buffer_position, uint1
     size_t bytesRead;
 
     if (buffer_position + n > BUFFER_SIZE) {
-        printf("no memcpy, rewind\n");
-        //memcpy((void*)data, (void*) (data + buffer_position), BUFFER_SIZE - buffer_position);
-        previously_read = 0;//BUFFER_SIZE - buffer_position;
+        printf("memcpy\n");
+        memcpy((void*)data, (void*) (data + buffer_position), BUFFER_SIZE - buffer_position);
+        previously_read = BUFFER_SIZE - buffer_position;
         buffer_position = 0;
+
+        if (1) {
+          printf("All Buffer after memcpy:\n");
+          for(int ii = 0; ii < BUFFER_SIZE; ii++) {
+              printf("ii = %d, ", (int)ii);
+              printf("data[ii] = %X\n", (int)data[ii]);
+          }
+        }
+
+
     }
 
     if (buffer_position + n > previously_read) {

@@ -147,7 +147,7 @@ int main(void)
 
         printf("Main: infinite loop...\n");
         previously_read = readFromSource(1, data, buffer_position + 1, previously_read, 1);
-        if (0) {
+        if (1) {
           printf("Buffer after read 1:\n");
           for(ii = 0; ii < previously_read; ii++) {
               printf("ii = %d, ", (int)ii);
@@ -164,7 +164,7 @@ int main(void)
         printf("frame size: %d (hex=%x)\n", (int)frame_size, (int)frame_size);
         previously_read = readFromSource(1, data, buffer_position + 2, previously_read, frame_size);
         
-        if (0) {
+        if (1) {
           printf("Buffer after read frame:\n");
           for(ii = 0; ii < previously_read; ii++) {
               printf("ii = %d, ", (int)ii);
@@ -213,7 +213,7 @@ int main(void)
 
                 if (data[i] == CRSF_SYNC_BYTE) {
                     buffer_position = i;
-                    printf("- Found!");
+                    printf("- Found!\n");
                     found = 1;
                     break;
                 }
