@@ -12,6 +12,7 @@
 // 0x8F - was received, unclear what frametype is @todo search both tx (express lrs) and rx (betaflight) sources
 #define CRSF_FRAMETYPE_HZ 0x8F
 #define CRSF_FRAMETYPE_ATTITUDE 0x1E
+char verbose = 0;
 
 /*
 
@@ -215,12 +216,13 @@ int readFromSource(int sourceId, uint8_t * data, uint16_t buffer_position, uint1
     size_t bytesRead;
 
     if (buffer_position + n > BUFFER_SIZE) {
-        printf("memcpy\n");
+        if (verbose > 2) 
+          printf("memcpy\n");
         memcpy((void*)data, (void*) (data + buffer_position), BUFFER_SIZE - buffer_position);
         previously_read = BUFFER_SIZE - buffer_position;
         buffer_position = 0;
 
-        if (1) {
+        if (verbose > 3) {
           printf("All Buffer after memcpy:\n");
           for(int ii = 0; ii < BUFFER_SIZE; ii++) {
               printf("ii = %d, ", (int)ii);
@@ -234,16 +236,20 @@ int readFromSource(int sourceId, uint8_t * data, uint16_t buffer_position, uint1
     if (buffer_position + n > previously_read) {
         bytesRead = data_read(data + previously_read, buffer_position + n - previously_read, sourceId);
 
-        printf("read %d bytes, starting from %d\n", (int)bytesRead, (int)previously_read);
+        if (verbose > 2)
+          printf("read %d bytes, starting from %d\n", (int)bytesRead, (int)previously_read);
 
         if (bytesRead != sizeof(uint8_t) * (buffer_position + n - previously_read)) {
-            printf("Error reading the data\n");
+            if (verbose > 2)
+              printf("Error reading the data\n");
+
             return -1;
         }
 
         previously_read = previously_read + bytesRead;
     } else {
-        printf("No reads, data is available\n");
+        if (verbose > 2)
+          printf("No reads, data is available\n");
     }
 
     return previously_read;

@@ -68,6 +68,7 @@ int write_to_flash(uint32_t t, uint32_t address_beginning, uint32_t tick, char *
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 char buffer[256];
+//char verbose = 0;
 #define MEMORY_LIMIT  412000
 
 uint32_t t_received = 0;
@@ -110,7 +111,9 @@ int main(void)
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
   HAL_Delay(5000);
-  printf("Delay passed...\nHello, world!");
+  if (verbose > 1) {
+      printf("Delay passed...\nHello, world!");
+  }
 
     uint8_t data[BUFFER_SIZE];
     uint8_t crc;
@@ -127,10 +130,15 @@ int main(void)
     buffer_position = 0;
     previously_read = 0;
 
-    printf("\nStarting receiving data from main...\n");
+    if (verbose > 1) {
+        printf("\nStarting receiving data from main...\n");
+    }
+
     do {
         readFromSource(1, data, buffer_position, 0, 1);
-        printf("Searching for new beginning char: %x", (int) data[buffer_position]);
+        if (verbose > 1) {
+            printf("Searching for new beginning char: %x", (int) data[buffer_position]);
+        }
     } while(data[buffer_position] != CRSF_SYNC_BYTE);
 
     previously_read++;
@@ -144,10 +152,12 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+        if (verbose > 1) {
+            printf("Main: infinite loop...\n");
+        }
 
-        printf("Main: infinite loop...\n");
         previously_read = readFromSource(1, data, buffer_position + 1, previously_read, 1);
-        if (1) {
+        if (verbose > 3) {
           printf("Buffer after read 1:\n");
           for(ii = 0; ii < previously_read; ii++) {
               printf("ii = %d, ", (int)ii);
@@ -159,12 +169,20 @@ int main(void)
             buffer_position = buffer_position - BUFFER_SIZE;
         }
         device_id = data[buffer_position];
-        printf("device id: %d (hex=%x)\n", (int)device_id, (int)device_id);
+
+        if (verbose > 1) {
+            printf("device id: %d (hex=%x)\n", (int)device_id, (int)device_id);
+        }
+
         frame_size = data[buffer_position + 1];
-        printf("frame size: %d (hex=%x)\n", (int)frame_size, (int)frame_size);
+
+        if (verbose > 1) {
+            printf("frame size: %d (hex=%x)\n", (int)frame_size, (int)frame_size);
+        }
+
         previously_read = readFromSource(1, data, buffer_position + 2, previously_read, frame_size);
         
-        if (1) {
+        if (verbose > 3) {
           printf("Buffer after read frame:\n");
           for(ii = 0; ii < previously_read; ii++) {
               printf("ii = %d, ", (int)ii);
@@ -194,12 +212,16 @@ int main(void)
         } else {
             crc_failures_count++;
             // search for another beginning
-            printf("CRC failed: crc fact: %d,  crc read: %d\n", crc_fact, crc);
-            printf("frame_size: %d, dump_position = %d (%X), buffer_position: %d, previously read: %d\n", frame_size, 0, 0, buffer_position, previously_read);
+            if (verbose > 1) {
+                printf("CRC failed: crc fact: %d,  crc read: %d\n", crc_fact, crc);
+                printf("frame_size: %d, dump_position = %d (%X), buffer_position: %d, previously read: %d\n", frame_size, 0, 0, buffer_position, previously_read);
+            }
             uint8_t found = 0;
 
             for(uint16_t i = buffer_position + 1; i < buffer_position + frame_size; i++) {
-                printf("Searching for new beginning in buffer, i=%d, data[i]=%0X, dump position: %d\n", i, data[i], 0);
+                if (verbose > 2) {
+                    printf("Searching for new beginning in buffer, i=%d, data[i]=%0X, dump position: %d\n", i, data[i], 0);
+                }
                 if (i > previously_read) {
                     buffer_position = 0;
                     previously_read = 0;
@@ -213,12 +235,12 @@ int main(void)
 
                 if (data[i] == CRSF_SYNC_BYTE) {
                     buffer_position = i;
-                    printf("- Found!\n");
+                    if (verbose > 1) {
+                        printf("- Found!\n"); 
+                    }
                     found = 1;
                     break;
                 }
-
-                printf("\n");
             }
 
             if (!found) {
@@ -226,7 +248,10 @@ int main(void)
 
                 do {
                     readFromSource(1, data, buffer_position, 0, 1);
-                    printf("Searching for new beginning in file, dump position: %X (%d), char: %x\n", 0, 0, data[buffer_position]);
+
+                    if (verbose > 1) {
+                        printf("Searching for new beginning in file, dump position: %X (%d), char: %x\n", 0, 0, data[buffer_position]);
+                    }
                 } while(data[buffer_position] != CRSF_SYNC_BYTE);
 
                 previously_read = 1;
