@@ -67,8 +67,13 @@ void processCrsfFrame(uint8_t * data, uint8_t device_id, uint8_t frame_size, uin
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 char buffer[256];
-//char verbose = 0;
 #define MEMORY_LIMIT  412000
+#define CHANNEL_NUMBER_PITCH 0
+#define CHANNEL_NUMBER_ROLL 1
+#define CHANNEL_NUMBER_YAW 2
+#define CHANNEL_NUMBER_TROTTLE 3
+#define CHANNEL_NUMBER_ARM 4
+#define CHANNEL_NUMBER_CUSTOM_MODE 5
 
 uint32_t t_received = 0;
 uint32_t t_transmitted = 0;
@@ -426,14 +431,14 @@ int __io_putchar(int ch)
   /* Place your implementation of fputc here */
   /* e.g. write a character to the USART1 and Loop until the end of transmission */
   //HAL_UART_Transmit(&huart2, (uint8_t *)&ch, 1, 0xFFFF);
-  // ITM_SendChar(ch);
-  //CDC_Transmit_FS((uint8_t *)&ch, 1);
+  //ITM_SendChar(ch);
+  //CDC_Transmit_FS((uint8_t *)&ch, 1); !!!uncomment this for debugging to usb
 
   return ch;
 }
 
 int _write(int file, char *ptr, int len) {
-    return len;
+    return len; // comment this line to debug with usb
     static uint8_t rc = USBD_OK;
 
     do {
@@ -476,8 +481,16 @@ int write_to_flash(uint32_t t, uint32_t address_beginning, char * data, int item
       uint64_t i;
 
       for(i = 0; i < item_size; i++, flashAddress++) {
+          if (verbose > 3) 
+              printf("Writing to flash: i: %d, flashAddress: %X, byte: %x\n", (int)i, (int)flashAddress, data[i]);
+
           if (HAL_FLASH_Program(FLASH_TYPEPROGRAM_BYTE, flashAddress, (uint64_t) data[i]) != HAL_OK) {
-              return HAL_FLASH_GetError ();
+                int errorCode = HAL_FLASH_GetError ();
+
+                if (verbose > 3) 
+                    printf("Error writing to flash: error code: %d\n", (int)errorCode);
+
+              return errorCode;
           }
       }
 
@@ -515,34 +528,34 @@ int saveCurrentState(
 ) {
   int dataChanged = 0;
 
-  if (data_for_flash_p->rx_pitch != crsf_packet->received_channels[0])
+  if (data_for_flash_p->rx_pitch != crsf_packet->received_channels[CHANNEL_NUMBER_PITCH])
   {
      dataChanged = 1;
-     data_for_flash_p->rx_pitch = crsf_packet->received_channels[0];
+     data_for_flash_p->rx_pitch = crsf_packet->received_channels[CHANNEL_NUMBER_PITCH];
   }
 
-  if (data_for_flash_p->rx_roll != crsf_packet->received_channels[1])
+  if (data_for_flash_p->rx_roll != crsf_packet->received_channels[CHANNEL_NUMBER_ROLL])
   {
      dataChanged = 1;
-     data_for_flash_p->rx_roll = crsf_packet->received_channels[1];
+     data_for_flash_p->rx_roll = crsf_packet->received_channels[CHANNEL_NUMBER_ROLL];
   }
 
-  if (data_for_flash_p->rx_yaw != crsf_packet->received_channels[2])
+  if (data_for_flash_p->rx_yaw != crsf_packet->received_channels[CHANNEL_NUMBER_YAW])
   {
      dataChanged = 1;
-     data_for_flash_p->rx_yaw = crsf_packet->received_channels[2];
+     data_for_flash_p->rx_yaw = crsf_packet->received_channels[CHANNEL_NUMBER_YAW];
   }
 
-  if (data_for_flash_p->rx_trottle != crsf_packet->received_channels[3])
+  if (data_for_flash_p->rx_trottle != crsf_packet->received_channels[CHANNEL_NUMBER_TROTTLE])
   {
      dataChanged = 1;
-     data_for_flash_p->rx_trottle = crsf_packet->received_channels[3];
+     data_for_flash_p->rx_trottle = crsf_packet->received_channels[CHANNEL_NUMBER_TROTTLE];
   }
 
-  if (data_for_flash_p->rx_arm != crsf_packet->received_channels[4])
+  if (data_for_flash_p->rx_arm != crsf_packet->received_channels[CHANNEL_NUMBER_ARM])
   {
      dataChanged = 1;
-     data_for_flash_p->rx_arm = crsf_packet->received_channels[4];
+     data_for_flash_p->rx_arm = crsf_packet->received_channels[CHANNEL_NUMBER_ARM];
   }
 
   if (data_for_flash_p->pitch != crsf_attitude->pitch)
